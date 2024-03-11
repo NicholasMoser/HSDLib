@@ -4,6 +4,8 @@ using OpenTK.Mathematics;
 using System.Diagnostics;
 using System.Collections.Generic;
 using HSDRawViewer.Rendering.Models;
+using HSDRaw.Tools;
+using IONET.Collada.Kinematics.Joints;
 
 namespace HSDRawViewer.Rendering
 {
@@ -90,6 +92,26 @@ namespace HSDRawViewer.Rendering
             _motFile = file;
             _motJointTable = jointTable;
             FrameCount = (int)Math.Ceiling(_motFile.EndTime * 60);
+
+        // Maybe set the FOBJ_Player like this?
+        //
+        //    Nodes.Clear();
+        //    FrameCount = 0;
+        //    foreach (MOT_JOINT j in file.Joints)
+        //    {
+        //        AnimNode n = new AnimNode();
+        //        FrameCount = (int)Math.Max(FrameCount, j.MaxTime + 1);
+        //
+        //        foreach (var key in j.Keys)
+        //        {
+        //            var players = new FOBJ_Player(fdesc);
+        //            if (players.Keys != null && players.Keys.Count > 0)
+        //                FrameCount = Math.Max(FrameCount, players.Keys.Max(e => e.Frame + 1));
+        //            n.Tracks.Add(players);
+        //        }
+        //
+        //        Nodes.Add(n);
+        //    }
         }
 
         /// <summary>

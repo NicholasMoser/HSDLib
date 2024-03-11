@@ -4,13 +4,14 @@ using HSDRawViewer.Tools.Animation;
 using IONET;
 using IONET.Core;
 using IONET.Core.Animation;
+using System.Drawing.Imaging;
 using System.IO;
 
 namespace HSDRawViewer.Converters.Animation
 {
     public class JointAnimationLoader
     {
-        public static readonly string SupportedImportAnimFilter = "Supported Animation Formats (*.dat*.anim*.chr0*.smd*.dae)|*.dat;*.anim;*.chr0;*.smd;*.dae";
+        public static readonly string SupportedImportAnimFilter = "Supported Animation Formats (*.dat*.anim*.chr0*.smd*.dae*.mota*.gnta)|*.dat;*.anim;*.chr0;*.smd;*.dae;*.mota;*.gnta";
 
         /// <summary>
         /// 
@@ -61,6 +62,18 @@ namespace HSDRawViewer.Converters.Animation
 
                     if (dat.Roots.Count > 0 && dat.Roots[0].Data is HSD_AnimJoint joint)
                         return new JointAnimManager(joint);
+                }
+                else
+                if (Path.GetExtension(filePath).ToLower().Equals(".mota") || Path.GetExtension(filePath).ToLower().Equals(".gnta"))
+                {
+                    var jointTable = Tools.FileIO.OpenFile("Joint Connector Value (*.jcv)|*.jcv");
+                    if (jointTable != null)
+                    {
+                        MotAnimManager motManager = new MotAnimManager();
+                        motManager.SetMOT(MOTLoader.GetJointTable(jointTable), new MOT_FILE(filePath));
+                        return motManager;
+                    }
+                    
                 }
             }
 

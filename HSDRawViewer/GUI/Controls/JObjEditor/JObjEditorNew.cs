@@ -288,6 +288,7 @@ namespace HSDRawViewer.GUI.Controls.JObjEditor
                 if (pro != null)
                 {
                     pro.Tracks.Clear();
+                    // All animation.Nodes[i].Tracks are 0
                     pro.Tracks.AddRange(animation.Nodes[i].Tracks);
                 }
             }
