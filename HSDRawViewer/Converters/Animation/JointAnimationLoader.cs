@@ -26,6 +26,8 @@ namespace HSDRawViewer.Converters.Animation
 
             if (filePath != null)
             {
+                var ext = Path.GetExtension(filePath).ToLower();
+
                 if (Path.GetExtension(filePath).ToLower().Equals(".smd"))
                 {
                     return SMDConv.ImportAnimationFromSMD(filePath, _jointMap);
@@ -75,6 +77,36 @@ namespace HSDRawViewer.Converters.Animation
                     }
                     
                 }
+                                    else
+                                        if (ext == ".mota" || ext == ".gnta")
+                                        {
+                                            var jointTable = Tools.FileIO.OpenFile("Joint Connector Value (*.jcv)|*.jcv");
+                                            if (jointTable == null)
+                                                return null;
+
+                                            MOT_FILE mot;
+
+                                            if (ext == ".gnta")
+                                            {
+                                                // single animation
+                                                mot = new MOT_FILE(filePath);
+                                            }
+                                            else
+                                            {
+                                                // pack of animations; empty entries come back with no joints
+                                                var anims = MOTLoader.UnpackMOTs(filePath);
+                                                var valid = anims.FindAll(a => a.Joints.Count > 0);
+                                                if (valid.Count == 0)
+                                                    return null;
+
+                                                // TODO: let the user pick an entry. First valid one for now.
+                                                mot = valid[0];
+                                            }
+
+                                            var motManager = new MotAnimManager();
+                                            motManager.SetMOT(MOTLoader.GetJointTable(jointTable), mot);
+                                            return motManager;
+                                        }
             }
 
             return null;
