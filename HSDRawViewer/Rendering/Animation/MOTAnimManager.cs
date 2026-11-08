@@ -1,17 +1,15 @@
-﻿using HSDRawViewer.Converters;
-using System;
-using OpenTK.Mathematics;
-using System.Diagnostics;
-using System.Collections.Generic;
-using HSDRawViewer.Rendering.Models;
+﻿using HSDRaw.Common;
+using HSDRaw.Common.Animation;
 using HSDRaw.Tools;
-using IONET.Collada.Kinematics.Joints;
+using HSDRawViewer.Converters;
+using HSDRawViewer.Rendering.Models;
+using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace HSDRawViewer.Rendering
 {
-    /// <summary>
-    /// 
-    /// </summary>
     public class MotAnimManager : JointAnimManager
     {
         private MOT_FILE _motFile;
@@ -26,92 +24,125 @@ namespace HSDRawViewer.Rendering
         private void ApplyAnimation0(LiveJObj jobj, float frame)
         {
             var joints = _motFile.Joints.FindAll(
-                e => e.BoneID >= 0 && 
-                e.BoneID < _motJointTable.Length && 
+                e => e.BoneID >= 0 &&
+                e.BoneID < _motJointTable.Length &&
                 _motJointTable[e.BoneID] == jobj.Index);
 
             foreach (var j in joints)
             {
                 var key = j.GetKey(frame / 60f);
                 if (key == null)
-                {
                     continue;
-                }
 
                 if (j.TrackFlag.HasFlag(MOT_FLAGS.TRANSLATE))
-                {
                     jobj.Translation = new Vector3(jobj.Desc.TX, jobj.Desc.TY, jobj.Desc.TZ) + new Vector3(key.X, key.Y, key.Z);
-                }
+
                 if (j.TrackFlag.HasFlag(MOT_FLAGS.SCALE))
-                {
                     jobj.Scale = new Vector3(jobj.Desc.SX, jobj.Desc.SY, jobj.Desc.SZ) + new Vector3(key.X, key.Y, key.Z);
-                }
+
                 if (j.TrackFlag.HasFlag(MOT_FLAGS.ROTATE))
-                {
-                    var dir = new Vector3(key.X, key.Y, key.Z);
-                    var angle = key.W;
-
-                    ///
-                    //var local_2a4 = new Vector3(org_axis_vector.X, org_axis_vector.Y, org_axis_vector.Z);
-                    //if (dynamic_params.MaxAngleChange < Vector3.CalculateAngle(axis_vector, local_2a4))
-                    //{
-                    //    var VStack688 = Vector3.Cross(local_2a4, axis_vector).Normalized();
-                    //    local_2a4.RotateAboutUnitAxis(dynamic_params.MaxAngleChange, VStack688); // lbvector_RotateAboutUnitAxis(dynamic_params.MaxAngleChange, ref local_2a4, VStack688);
-                    //    axis_vector = local_2a4;
-                    //}
-
-                    //var rot = new Vector3(jobj.Desc.RX, jobj.Desc.RY, jobj.Desc.RZ);
-                    //// var ang = Vector3.CalculateAngle(rot, dir);
-
-                    //rot.RotateAboutUnitAxis(angle * (float)Math.PI / 180, Vector3.Cross(Vector3.UnitX, dir));
-                    //jobj.Rotation.Xyz = rot;
-
-
-                    var rotationOverride = Math3D.EulerToQuat(jobj.Desc.RX, jobj.Desc.RY, jobj.Desc.RZ);
-
-                    float rot_angle = (float)Math.Acos(Vector3.Dot(Vector3.UnitX, dir));
-                    if (Math.Abs(rot_angle) > 0.000001f)
-                    {
-                        Vector3 rot_axis = Vector3.Cross(Vector3.UnitX, dir).Normalized();
-                        rotationOverride *= Quaternion.FromAxisAngle(rot_axis, rot_angle);
-                    }
-
-                    rotationOverride *= Quaternion.FromEulerAngles(angle * (float)Math.PI / 180, 0, 0);
-                    jobj.Rotation.Xyz = Matrix4.CreateFromQuaternion(rotationOverride).ExtractRotationEuler();
-                }
+                    jobj.Rotation.Xyz = MotRotationToEuler(new Vector3(jobj.Desc.RX, jobj.Desc.RY, jobj.Desc.RZ), key);
             }
         }
 
         /// <summary>
-        /// 
+        /// Shared by preview and bake so they can't drift apart.
         /// </summary>
-        /// <param name="jointTable"></param>
-        /// <param name="file"></param>
+        private static Vector3 MotRotationToEuler(Vector3 bindRot, MOT_KEY key)
+        {
+            var q = Math3D.EulerToQuat(bindRot.X, bindRot.Y, bindRot.Z);
+
+            var dir = new Vector3(key.X, key.Y, key.Z);
+            if (dir.LengthSquared > 1e-12f)
+            {
+                dir.Normalize();
+                float dot = Math.Max(-1f, Math.Min(1f, Vector3.Dot(Vector3.UnitX, dir)));
+                float a = (float)Math.Acos(dot);
+                var axis = Vector3.Cross(Vector3.UnitX, dir);
+                if (Math.Abs(a) > 1e-6f && axis.LengthSquared > 1e-12f)
+                    q *= Quaternion.FromAxisAngle(axis.Normalized(), a);
+            }
+
+            q *= Quaternion.FromEulerAngles(key.W * (float)Math.PI / 180f, 0, 0);
+            return Matrix4.CreateFromQuaternion(q).ExtractRotationEuler();
+        }
+
         public void SetMOT(short[] jointTable, MOT_FILE file)
         {
             _motFile = file;
             _motJointTable = jointTable;
             FrameCount = (int)Math.Ceiling(_motFile.EndTime * 60);
+        }
 
-        // Maybe set the FOBJ_Player like this?
-        //
-        //    Nodes.Clear();
-        //    FrameCount = 0;
-        //    foreach (MOT_JOINT j in file.Joints)
-        //    {
-        //        AnimNode n = new AnimNode();
-        //        FrameCount = (int)Math.Max(FrameCount, j.MaxTime + 1);
-        //
-        //        foreach (var key in j.Keys)
-        //        {
-        //            var players = new FOBJ_Player(fdesc);
-        //            if (players.Keys != null && players.Keys.Count > 0)
-        //                FrameCount = Math.Max(FrameCount, players.Keys.Max(e => e.Frame + 1));
-        //            n.Tracks.Add(players);
-        //        }
-        //
-        //        Nodes.Add(n);
-        //    }
+        /// <summary>
+        /// Converts the MOT data into per-joint FOBJ tracks so the track editor can use it.
+        /// Bakes one key per frame; use "Compress All Tracks" afterwards.
+        /// </summary>
+        public void BakeToTracks(HSD_JOBJ root)
+        {
+            var joints = root.TreeList;
+
+            Nodes.Clear();
+            for (int i = 0; i < joints.Count; i++)
+                Nodes.Add(new AnimNode());
+
+            foreach (var j in _motFile.Joints)
+            {
+                if (j.Keys.Count == 0 || j.BoneID < 0 || j.BoneID >= _motJointTable.Length)
+                    continue;
+
+                int idx = _motJointTable[j.BoneID];
+                if (idx < 0 || idx >= joints.Count)
+                    continue;
+
+                var node = Nodes[idx];
+                var bind = joints[idx];
+                Vector3 prev = default;
+
+                for (int f = 0; f <= FrameCount; f++)
+                {
+                    var key = j.GetKey(f / 60f);
+                    if (key == null)
+                        continue;
+
+                    if (j.TrackFlag.HasFlag(MOT_FLAGS.TRANSLATE))
+                    {
+                        node.AddLinearKey(JointTrackType.HSD_A_J_TRAX, f, bind.TX + key.X);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_TRAY, f, bind.TY + key.Y);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_TRAZ, f, bind.TZ + key.Z);
+                    }
+
+                    if (j.TrackFlag.HasFlag(MOT_FLAGS.SCALE))
+                    {
+                        node.AddLinearKey(JointTrackType.HSD_A_J_SCAX, f, bind.SX + key.X);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_SCAY, f, bind.SY + key.Y);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_SCAZ, f, bind.SZ + key.Z);
+                    }
+
+                    if (j.TrackFlag.HasFlag(MOT_FLAGS.ROTATE))
+                    {
+                        var e = MotRotationToEuler(new Vector3(bind.RX, bind.RY, bind.RZ), key);
+                        if (f > 0)
+                        {
+                            e.X = Unwrap(e.X, prev.X);
+                            e.Y = Unwrap(e.Y, prev.Y);
+                            e.Z = Unwrap(e.Z, prev.Z);
+                        }
+                        prev = e;
+                        node.AddLinearKey(JointTrackType.HSD_A_J_ROTX, f, e.X);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_ROTY, f, e.Y);
+                        node.AddLinearKey(JointTrackType.HSD_A_J_ROTZ, f, e.Z);
+                    }
+                }
+            }
+        }
+
+        private static float Unwrap(float v, float prev)
+        {
+            const float TwoPi = (float)(Math.PI * 2);
+            while (v - prev > Math.PI) v -= TwoPi;
+            while (v - prev < -Math.PI) v += TwoPi;
+            return v;
         }
 
         /// <summary>

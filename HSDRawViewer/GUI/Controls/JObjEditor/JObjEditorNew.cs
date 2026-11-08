@@ -273,6 +273,9 @@ namespace HSDRawViewer.GUI.Controls.JObjEditor
         /// <param name="jointAnim"></param>
         public void LoadAnimation(JointAnimManager animation)
         {
+            if (animation is MotAnimManager mot && _root != null)
+                mot.BakeToTracks(_root);
+
             // reset skeleton
             RenderJObj.RootJObj?.ResetTransforms();
 
